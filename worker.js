@@ -183,90 +183,130 @@ class BodyRewriter {
     element(element) {
         element.append(
             `<script>
+            // 设置基础域名
             window.CONFIG.domainBaseUrl = 'https://${MY_DOMAIN}';
+            
+            // 页面 Slug 到页面名称的映射
             const SLUG_TO_PAGE = ${JSON.stringify(this.SLUG_TO_PAGE)};
+            
+            // 页面名称到 Slug 的映射
             const PAGE_TO_SLUG = {};
+            
+            // 存储所有的 Slug 和页面名称
             const slugs = [];
             const pages = [];
+            
+            // 创建一个虚拟元素
             const el = document.createElement('div');
+            
+            // 标记是否已经重定向
             let redirected = false;
+        
+            // 遍历 SLUG_TO_PAGE 对象，构建 Slug 和页面名称的映射关系
             Object.keys(SLUG_TO_PAGE).forEach(slug => {
                 const page = SLUG_TO_PAGE[slug];
                 slugs.push(slug);
                 pages.push(page);
                 PAGE_TO_SLUG[page] = slug;
             });
-
+        
+            // 获取当前页面名称
             function getPage() {
                 return location.pathname.slice(-32);
             }
-
+        
+            // 获取当前 Slug
             function getSlug() {
                 return location.pathname.slice(1);
             }
-
+        
+            // 更新 Slug
             function updateSlug() {
                 const slug = PAGE_TO_SLUG[getPage()];
                 if (slug != null) {
+                    // 使用 history.replaceState 更新 URL
                     history.replaceState(history.state, '', '/' + slug);
                 }
             }
+        
+            // 使用 MutationObserver 监听页面变化
             const observer = new MutationObserver(function() {
                 if (redirected) return;
                 const nav = document.querySelector('.notion-topbar');
                 const mobileNav = document.querySelector('.notion-topbar-mobile');
-                if (nav && nav.firstChild && nav.firstChild.firstChild ||
-                    mobileNav && mobileNav.firstChild) {
+                if (nav && nav.firstChild && nav.firstChild.firstChild || mobileNav && mobileNav.firstChild) {
                     redirected = true;
                     updateSlug();
-                    addDarkModeButton(nav ? 'web' : 'mobile');
+                    // window.onpopstate 是一个事件处理函数，它代表了浏览器的历史记录发生变化时触发的事件处理函数。
                     const onpopstate = window.onpopstate;
                     window.onpopstate = function() {
                         if (slugs.includes(getSlug())) {
                             const page = SLUG_TO_PAGE[getSlug()];
                             if (page) {
+                                // 使用 history.replaceState 更新 URL
                                 history.replaceState(history.state, 'bypass', '/' + page);
                             }
                         }
+                        console.log("observer arguments", arguments);
+                        // this 表示当前的执行上下文，这里是指当前事件处理函数所在的上下文。
+                        // arguments 是一个类数组对象，包含了函数被调用时传递的所有参数。
+                        // [].slice.call(arguments) 将 arguments 对象转换为一个真正的数组。
                         onpopstate.apply(this, [].slice.call(arguments));
                         updateSlug();
                     };
                 }
             });
+        
+            // 监听 #notion-app 下的子节点变化
             observer.observe(document.querySelector('#notion-app'), {
                 childList: true,
                 subtree: true,
             });
+        
+            // 重写 history.replaceState，防止重复更新
             const replaceState = window.history.replaceState;
             window.history.replaceState = function(state) {
+                console.log("replaceState arguments", arguments);
                 if (arguments[1] !== 'bypass' && slugs.includes(getSlug())) return;
+                // 调用原始的 replaceState 方法，使用 apply 方法传递当前上下文和原始的参数
                 return replaceState.apply(window.history, arguments);
             };
+        
+            // 重写 history.pushState，处理页面名称和 Slug 的映射
             const pushState = window.history.pushState;
             window.history.pushState = function(state) {
+                console.log("pushState arguments", arguments);
                 const dest = new URL(location.protocol + location.host + arguments[2]);
                 const id = dest.pathname.slice(-32);
                 if (pages.includes(id)) {
                     arguments[2] = '/' + PAGE_TO_SLUG[id];
                 }
+                // 调用原始的 pushState 方法，使用 apply 方法传递当前上下文和修改后的参数
                 return pushState.apply(window.history, arguments);
             };
-            const open = window.XMLHttpRequest.prototype.open;
-            window.XMLHttpRequest.prototype.open = function() {
-                arguments[1] = arguments[1].replace('${MY_DOMAIN}', '${MY_NOTION_DOMAIN}');
-                return open.apply(this, [].slice.call(arguments));
-            };
-            </script>${CUSTOM_SCRIPT}`,
-            { html: true }
-        );
+        
+            // fix 237: https://github.com/stephenou/fruitionsite/issues/237#issuecomment-1902644851
+            // 重写 XMLHttpRequest.prototype.open，替换域名
+            // 用于处理打开新连接时的逻辑。
+            // const open = window.XMLHttpRequest.prototype.open;
+            // window.XMLHttpRequest.prototype.open = function() {
+            //     console.log("open arguments", arguments);
+            //     arguments[1] = arguments[1].replace('${MY_DOMAIN}', '${MY_NOTION_DOMAIN}');
+            //     // 调用原始的 XMLHttpRequest.prototype.open 方法，使用 apply 方法传递当前上下文和修改后的参数
+            //     return open.apply(this, [].slice.call(arguments));
+            // };
+        </script>
+        ${CUSTOM_SCRIPT}`, { 
+            html: true 
+        });
     }
 }
 
 async function appendJavascript(res, SLUG_TO_PAGE) {
     return new HTMLRewriter()
         .on('title', new MetaRewriter())
-        .on('meta', new MetaRewriter())
-        .on('head', new HeadRewriter())
+        // .on('meta', new MetaRewriter())
+        // .on('head', new HeadRewriter())
         .on('body', new BodyRewriter(SLUG_TO_PAGE))
         .transform(res);
 }
