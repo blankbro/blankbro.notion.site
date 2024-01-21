@@ -41,11 +41,9 @@ addEventListener('fetch', event => {
 
 function generateSitemap() {
     let sitemap = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-    slugs.forEach(
-        (slug) =>
-        (sitemap +=
-            '<url><loc>https://' + MY_DOMAIN + '/' + slug + '</loc></url>')
-    );
+    slugs.forEach((slug) => (
+        sitemap += '<url><loc>https://' + MY_DOMAIN + '/' + slug + '</loc></url>'
+    ));
     sitemap += '</urlset>';
     return sitemap;
 }
@@ -111,11 +109,8 @@ async function fetchAndApply(request) {
     } else if (slugs.indexOf(url.pathname.slice(1)) > -1) {
         const pageId = SLUG_TO_PAGE[url.pathname.slice(1)];
         return Response.redirect('https://' + MY_DOMAIN + '/' + pageId, 301);
-    } else if (
-        pages.indexOf(url.pathname.slice(1)) === -1 &&
-        url.pathname.slice(1).match(/[0-9a-f]{32}/)
-    ) {
-        return Response.redirect('https://' + MY_NOTION_DOMAIN+ url.pathname, 301);
+    } else if (pages.indexOf(url.pathname.slice(1)) === -1 && url.pathname.slice(1).match(/[0-9a-f]{32}/)) {
+        return Response.redirect('https://' + MY_NOTION_DOMAIN + url.pathname, 301);
     } else {
         response = await fetch(url.toString(), {
             body: request.body,
