@@ -2,6 +2,7 @@
 
 /* Step 1: enter your domain name like fruitionsite.com */
 const MY_DOMAIN = 'blankbro.site';
+const MY_NOTION_DOMAIN = 'blankbro.notion.site';
 
 /*
  * Step 2: enter your URL slug to page ID mapping
@@ -78,7 +79,7 @@ async function fetchAndApply(request) {
         return handleOptions(request);
     }
     let url = new URL(request.url);
-    url.hostname = 'blankbro.notion.site';
+    url.hostname = MY_NOTION_DOMAIN;
     if (url.pathname === '/robots.txt') {
         return new Response('Sitemap: https://' + MY_DOMAIN + '/sitemap.xml');
     }
@@ -91,7 +92,7 @@ async function fetchAndApply(request) {
     if (url.pathname.startsWith('/app') && url.pathname.endsWith('js')) {
         response = await fetch(url.toString());
         let body = await response.text();
-        response = new Response(body.replace(/blankbro.notion.site/g, MY_DOMAIN).replace(/www.notion.so/g, MY_DOMAIN).replace(/notion.so/g, MY_DOMAIN), response);
+        response = new Response(body.replace(/${MY_NOTION_DOMAIN}/g, MY_DOMAIN).replace(/www.notion.so/g, MY_DOMAIN).replace(/notion.so/g, MY_DOMAIN), response);
         response.headers.set('Content-Type', 'application/x-javascript');
         return response;
     } else if ((url.pathname.startsWith('/api'))) {
@@ -110,6 +111,11 @@ async function fetchAndApply(request) {
     } else if (slugs.indexOf(url.pathname.slice(1)) > -1) {
         const pageId = SLUG_TO_PAGE[url.pathname.slice(1)];
         return Response.redirect('https://' + MY_DOMAIN + '/' + pageId, 301);
+    } else if (
+        pages.indexOf(url.pathname.slice(1)) === -1 &&
+        url.pathname.slice(1).match(/[0-9a-f]{32}/)
+    ) {
+        return Response.redirect('https://' + MY_NOTION_DOMAIN+ url.pathname, 301);
     } else {
         response = await fetch(url.toString(), {
             body: request.body,
@@ -155,7 +161,7 @@ class MetaRewriter {
 class HeadRewriter {
     element(element) {
         if (GOOGLE_FONT !== '') {
-            element.append(`<link href="https://fonts.googleapis.com/css?family=${GOOGLE_FONT}.replace(' ', '+')}:Regular,Bold,Italic&display=swap" rel="stylesheet">
+            element.append(`<link href="https://fonts.googleapis.com/css?family=${GOOGLE_FONT.replace(' ', '+')}:Regular,Bold,Italic&display=swap" rel="stylesheet">
         <style>* { font-family: "${GOOGLE_FONT}" !important; }</style>`, {
                 html: true
             });
@@ -249,7 +255,7 @@ class BodyRewriter {
             };
             const open = window.XMLHttpRequest.prototype.open;
             window.XMLHttpRequest.prototype.open = function() {
-                arguments[1] = arguments[1].replace('${MY_DOMAIN}', 'blankbro.notion.site');
+                arguments[1] = arguments[1].replace('${MY_DOMAIN}', '${MY_NOTION_DOMAIN}');
                 return open.apply(this, [].slice.call(arguments));
             };
             </script>${CUSTOM_SCRIPT}`,
