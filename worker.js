@@ -110,7 +110,7 @@ async function fetchAndApply(request) {
         const pageId = SLUG_TO_PAGE[url.pathname.slice(1)];
         return Response.redirect('https://' + MY_DOMAIN + '/' + pageId, 301);
     } else if (pages.indexOf(url.pathname.slice(1)) === -1 && url.pathname.slice(1).match(/[0-9a-f]{32}/)) {
-        return Response.redirect('https://' + MY_NOTION_DOMAIN + url.pathname, 301);
+        return Response.redirect('https://' + MY_NOTION_DOMAIN + url.pathname, 302);
     } else {
         response = await fetch(url.toString(), {
             body: request.body,
@@ -157,20 +157,20 @@ class HeadRewriter {
     element(element) {
         if (GOOGLE_FONT !== '') {
             element.append(`<link href="https://fonts.googleapis.com/css?family=${GOOGLE_FONT.replace(' ', '+')}:Regular,Bold,Italic&display=swap" rel="stylesheet">
-        <style>* { font-family: "${GOOGLE_FONT}" !important; }</style>`, {
+                <style>* { font-family: "${GOOGLE_FONT}" !important; }</style>`, {
                 html: true
             });
         }
         element.append(`<style>
-      div.notion-topbar > div > div:nth-child(3) { display: none !important; }
-      div.notion-topbar > div > div:nth-child(4) { display: none !important; }
-      div.notion-topbar > div > div:nth-child(5) { display: none !important; }
-      div.notion-topbar > div > div:nth-child(6) { display: none !important; }
-      div.notion-topbar-mobile > div:nth-child(3) { display: none !important; }
-      div.notion-topbar-mobile > div:nth-child(4) { display: none !important; }
-      div.notion-topbar > div > div:nth-child(1n).toggle-mode { display: block !important; }
-      div.notion-topbar-mobile > div:nth-child(1n).toggle-mode { display: block !important; }
-      </style>`, {
+            div.notion-topbar > div > div:nth-child(3) { display: none !important; }
+            div.notion-topbar > div > div:nth-child(4) { display: none !important; }
+            div.notion-topbar > div > div:nth-child(5) { display: none !important; }
+            div.notion-topbar > div > div:nth-child(6) { display: none !important; }
+            div.notion-topbar-mobile > div:nth-child(3) { display: none !important; }
+            div.notion-topbar-mobile > div:nth-child(4) { display: none !important; }
+            div.notion-topbar > div > div:nth-child(1n).toggle-mode { display: block !important; }
+            div.notion-topbar-mobile > div:nth-child(1n).toggle-mode { display: block !important; }
+            </style>`, {
             html: true
         })
     }
@@ -196,38 +196,41 @@ class BodyRewriter {
                 pages.push(page);
                 PAGE_TO_SLUG[page] = slug;
             });
+
             function getPage() {
                 return location.pathname.slice(-32);
             }
+
             function getSlug() {
                 return location.pathname.slice(1);
             }
+
             function updateSlug() {
                 const slug = PAGE_TO_SLUG[getPage()];
                 if (slug != null) {
-                history.replaceState(history.state, '', '/' + slug);
+                    history.replaceState(history.state, '', '/' + slug);
                 }
             }
             const observer = new MutationObserver(function() {
                 if (redirected) return;
                 const nav = document.querySelector('.notion-topbar');
                 const mobileNav = document.querySelector('.notion-topbar-mobile');
-                if (nav && nav.firstChild && nav.firstChild.firstChild
-                || mobileNav && mobileNav.firstChild) {
-                redirected = true;
-                updateSlug();
-                addDarkModeButton(nav ? 'web' : 'mobile');
-                const onpopstate = window.onpopstate;
-                window.onpopstate = function() {
-                    if (slugs.includes(getSlug())) {
-                    const page = SLUG_TO_PAGE[getSlug()];
-                    if (page) {
-                        history.replaceState(history.state, 'bypass', '/' + page);
-                    }
-                    }
-                    onpopstate.apply(this, [].slice.call(arguments));
+                if (nav && nav.firstChild && nav.firstChild.firstChild ||
+                    mobileNav && mobileNav.firstChild) {
+                    redirected = true;
                     updateSlug();
-                };
+                    addDarkModeButton(nav ? 'web' : 'mobile');
+                    const onpopstate = window.onpopstate;
+                    window.onpopstate = function() {
+                        if (slugs.includes(getSlug())) {
+                            const page = SLUG_TO_PAGE[getSlug()];
+                            if (page) {
+                                history.replaceState(history.state, 'bypass', '/' + page);
+                            }
+                        }
+                        onpopstate.apply(this, [].slice.call(arguments));
+                        updateSlug();
+                    };
                 }
             });
             observer.observe(document.querySelector('#notion-app'), {
@@ -244,7 +247,7 @@ class BodyRewriter {
                 const dest = new URL(location.protocol + location.host + arguments[2]);
                 const id = dest.pathname.slice(-32);
                 if (pages.includes(id)) {
-                arguments[2] = '/' + PAGE_TO_SLUG[id];
+                    arguments[2] = '/' + PAGE_TO_SLUG[id];
                 }
                 return pushState.apply(window.history, arguments);
             };
@@ -261,9 +264,9 @@ class BodyRewriter {
 
 async function appendJavascript(res, SLUG_TO_PAGE) {
     return new HTMLRewriter()
-        // .on('title', new MetaRewriter())
-        // .on('meta', new MetaRewriter())
-        // .on('head', new HeadRewriter())
+        .on('title', new MetaRewriter())
+        .on('meta', new MetaRewriter())
+        .on('head', new HeadRewriter())
         .on('body', new BodyRewriter(SLUG_TO_PAGE))
         .transform(res);
 }
